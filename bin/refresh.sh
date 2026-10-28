@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# refresh.sh — short-lived. Report the jj bookmark/status tokens for one or all
+# refresh.sh — short-lived. Report the jj workspace/change/status/description tokens
 # workspaces, then exit. herdr invokes this from [[events]] hooks and the
 # [[actions]] entry; there is no long-lived process and nothing persists here.
 #
@@ -16,11 +16,10 @@ SOURCE="mroth.jj-status"
 HERDR="${HERDR_BIN_PATH:-herdr}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPUTE="$HERE/../lib/compute.sh"
-MAXLEN=48   # keep sidebar tokens compact
 
 # report <workspace_id> <cwd>
 report() {
-  local wsid="$1" cwd="$2" line bookmark status
+  local wsid="$1" cwd="$2" line bookmark workspace change status description
   [ -n "$wsid" ] || return 0
   # No cwd yet (panes still spawning during the startup sweep): leave whatever
   # tokens are there rather than clearing them on a race.
@@ -29,17 +28,19 @@ report() {
   if ! line="$(bash "$COMPUTE" "$cwd")"; then
     # Not a jj repo: clear tokens so nothing stale lingers.
     "$HERDR" workspace report-metadata "$wsid" --source "$SOURCE" \
-      --clear-token jj_bookmark --clear-token jj_status >/dev/null 2>&1
+      --clear-token jj_bookmark --clear-token jj_workspace \
+      --clear-token jj_change --clear-token jj_status \
+      --clear-token jj_description >/dev/null 2>&1
     return 0
   fi
 
-  bookmark="${line%%$'\t'*}"
-  status="${line#*$'\t'}"
-  # Truncate overly long values (e.g. change-id + long description).
-  [ "${#bookmark}" -gt "$MAXLEN" ] && bookmark="${bookmark:0:MAXLEN-1}…"
+  IFS='|' read -r bookmark workspace change status description <<<"$line"
 
+  # Clear the old token so existing configs cannot keep showing the bookmark row.
   "$HERDR" workspace report-metadata "$wsid" --source "$SOURCE" \
-    --token "jj_bookmark=$bookmark" --token "jj_status=$status" >/dev/null 2>&1
+    --clear-token jj_bookmark \
+    --token "jj_workspace=$workspace" --token "jj_change=$change" \
+    --token "jj_status=$status" --token "jj_description=$description" >/dev/null 2>&1
 }
 
 # --- single workspace, for a per-workspace event hook ---

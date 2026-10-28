@@ -35,7 +35,14 @@ cid() { jj --no-pager --ignore-working-copy -R "$1" log -r "$2" --no-graph -T 'c
 # A bare git remote wired as `origin`.
 add_origin() { local d="$1" o; o="$(mktmp)/o.git"; git init --bare -q "$o"; j "$d" git remote add origin "$o"; }
 
-run() { bash "$compute" "$1"; }
+# Keep these existing checks focused on bookmark/status calculations; the
+# remaining pipe-delimited fields provide workspace, change ID, and summary.
+run() {
+  local line bookmark status
+  line="$(bash "$compute" "$1")" || return $?
+  IFS='|' read -r bookmark _ _ status _ <<<"$line"
+  printf '%s\t%s\n' "$bookmark" "$status"
+}
 
 check() {
   local name="$1" expect="$2" got="$3"

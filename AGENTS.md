@@ -1,7 +1,7 @@
 # AGENTS.md
 
 A [herdr](https://herdr.dev) plugin (id `mroth.jj-status`) that shows the current
-Jujutsu (`jj`) bookmark/status in herdr's spaces sidebar, for `jj` workspaces.
+Jujutsu (`jj`) workspace, change ID, status, and commit description in herdr's spaces sidebar.
 
 ## Layout
 
@@ -10,8 +10,9 @@ Jujutsu (`jj`) bookmark/status in herdr's spaces sidebar, for `jj` workspaces.
 - `bin/refresh.sh` — short-lived hook herdr invokes; computes tokens for a
   workspace (or sweeps all) and reports them via `herdr workspace
   report-metadata`, then exits.
-- `lib/compute.sh <dir>` — **pure**; prints `<jj_bookmark>\t<jj_status>` for a
-  repo dir (exit 3 if not a jj repo). The source of truth for the display grammar.
+- lib/compute.sh <dir> — pure; prints bookmark, jj workspace name, current
+  change ID, status, and commit description for a repo dir (exit 3 if not a jj
+  repo). The source of truth for the display grammar.
 - `test/compute_test.sh` — tests for `compute.sh` (no deps beyond `jj`/`jq`).
 - `plans/` — gitignored scratch space for storing and sharing plans/design notes
   locally; safe to create and write here.

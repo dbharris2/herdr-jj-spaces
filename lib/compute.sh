@@ -1,24 +1,18 @@
 #!/usr/bin/env bash
 # compute.sh <dir>
 #
-# Pure, side-effect-free read of a Jujutsu repo. Prints a single tab-separated
-# line "<jj_bookmark>\t<jj_status>" and exits 0 when <dir> is inside a jj repo.
-# Exits 3 (no output) when <dir> is not a jj repo, so the caller can clear the
-# sidebar tokens.
+# Pure, side-effect-free read of a Jujutsu repo. Prints
+# "<bookmark>|<workspace>|<change>|<status>|<description>" and exits 0 when <dir>
+# is inside a jj repo. Exits 3 (no output) when <dir> is not a jj repo.
 #
-# Grammar (see plans/display-spec.md) — location-anchored:
-#   $jj_bookmark : on a bookmark        -> "main" (or "main feat")
-#                  descendant of one    -> "<nearest>:: @<changeid>"  (e.g. "main:: @rx")
-#                  no bookmark at all    -> "@<changeid>"
-#                  (conflicted bookmark -> "name??"; divergent change -> "@id??")
-#   $jj_status   : "! ↑A↓D *N"  — conflict, remote ahead/behind, dirty(file count)
+# Displayed tokens:
+#   $jj_workspace    : current jj workspace name
+#   $jj_change       : current change ID, prefixed with @
+#   $jj_status       : ! ↑A↓D *N — conflict, remote ahead/behind, changed-file count
+#   $jj_description  : first line of the current commit description
 #
-# "::" is jj's DAG-range operator: "main::" = descendants of main, so "main:: @rx"
-#   reads "in main's descendants, at change rx". No depth count (glance surface).
-# @<changeid> = current change id (shortest unique), shown only when off a bookmark.
-# ↑A↓D = the shown bookmark vs its remote (default "origin"); omitted if no remote.
-# *N   = @ is non-empty; N = changed files.
-#
+# Bookmark information is still used internally to calculate remote ahead/behind.
+
 # All jj calls use --ignore-working-copy so reading never snapshots/mutates the
 # working copy (this may run often), and --no-pager so nothing blocks.
 
@@ -40,7 +34,12 @@ tmpl() { "${jj[@]}" log -r "$1" --no-graph -T "$2" 2>/dev/null; }
 at="$(tmpl '@' 'if(conflict,"1","") ++ "|" ++ if(empty,"1","") ++ "|" ++ if(divergent,"1","") ++ "|" ++ change_id.shortest() ++ "|" ++ self.diff().files().len() ++ "|" ++ '"$BM_T")" || exit 3
 IFS='|' read -r is_conflict is_empty is_divergent changeid files bookmark <<<"$at"
 
-# --- $jj_bookmark ---------------------------------------------------------
+# Herdr workspace title is separate; use jj's actual workspace name here.
+workspace="$("${jj[@]}" workspace list -T 'if(self.target().current_working_copy(), self.name(), "")' 2>/dev/null)" || exit 3
+[ -n "$workspace" ] || workspace="$(basename "$dir")"
+description="$(tmpl '@' 'description.first_line().replace("|", " ")')" || exit 3
+
+# --- Resolve bookmark context for remote status --------------------------
 # bmname = the single bookmark used for remote comparison ("" if none).
 bmname=""
 if [ -n "$bookmark" ]; then
@@ -60,7 +59,7 @@ else
   fi
 fi
 
-# --- $jj_status : "! ↑A↓D *N" --------------------------------------------
+# --- Build $jj_status: "! ↑A↓D *N" -------------------------------------
 conflict=""; [ -n "$is_conflict" ] && conflict="!"
 
 # Remote ahead/behind in a single call: over the union of both ranges, tag each
@@ -82,4 +81,5 @@ dirty=""; [ -z "$is_empty" ] && dirty="*${files}"
 # Assemble: conflict+remote joined tight; a space before dirty only when a remote
 # group is present (e.g. "↓1 *1", but "!*2" and "*2").
 sep=""; [ -n "$remote_group" ] && [ -n "$dirty" ] && sep=" "
-printf '%s\t%s\n' "$bookmark" "${conflict}${remote_group}${sep}${dirty}"
+status="${conflict}${remote_group}${sep}${dirty}"
+printf '%s|%s|@%s|%s|%s\n' "$bookmark" "$workspace" "$changeid" "$status" "$description"
