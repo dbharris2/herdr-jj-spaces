@@ -1,42 +1,28 @@
 # herdr-jj-status
 
-A [herdr](https://herdr.dev) plugin that shows the **Jujutsu (`jj`) bookmark and
-status** for `jj` workspaces in the spaces sidebar — the useful equivalent of the
-built-in `branch` / `git_status` row for repos you manage with `jj`.
+A [herdr](https://herdr.dev) plugin that shows the current Jujutsu (jj)
+workspace, change ID, status, and commit description in the spaces sidebar.
 
 For plain-git workspaces it does nothing: the built-in git row is left untouched.
 
 ## How it works
 
-herdr lets a plugin report custom sidebar values as workspace **metadata tokens**
-(`$name` tokens in `ui.sidebar.spaces.rows`). This plugin populates two tokens:
+The plugin reports four custom sidebar tokens:
 
-| token          | analogous to     | contents |
-| -------------- | ---------------- | -------- |
-| `$jj_bookmark` | git `branch`     | where `@` is: the bookmark name(s) when you're on one; otherwise `<nearest>:: @<change-id>`; or just `@<change-id>` with no bookmark |
-| `$jj_status`   | git `git_status` | `! ↑A↓D *N` — conflict, remote ahead/behind, dirty file count |
+| token | contents |
+| ----- | -------- |
+| $jj_workspace | Current jj workspace name |
+| $jj_change | Current change ID, prefixed with @ |
+| $jj_status | ! ↑A↓D *N — conflict, remote ahead/behind, changed-file count |
+| $jj_description | First line of the current commit description |
 
-**`$jj_bookmark` examples:** `main` (on it) · `main:: @xyz` (on a descendant of
-`main`, currently at change `xyz`) · `@xyz` (no bookmark) · `feat wip` (two
-bookmarks) · `main??` (conflicted bookmark).
-
-`::` is jj's DAG-range operator (`foo::` = descendants of foo), so `foo:: @xyz`
-reads "in foo's descendants, at change `xyz`.
-
-**`$jj_status` glyphs:**
-
-| glyph | meaning |
-| ----- | ------- |
-| `!`    | working-copy commit `@` is conflicted |
-| `↑A` `↓D` | the bookmark is A ahead / D behind its remote (default `origin`) |
-| `*N`   | `@` is non-empty; N = changed files |
-
-Examples: `↑2` · `↓1 *3` · `!*2` · `↑2↓1`. Set `JJ_STATUS_REMOTE` to compare
-against a remote other than `origin`.
+The status markers mean: ! is a conflict, ↑A / ↓D are remote ahead / behind
+counts, and *N means the current change contains N changed files. Set
+JJ_STATUS_REMOTE to compare against a remote other than origin.
 
 Rows refresh when you switch into a space or run the refresh action (and once at
-herdr startup). herdr has no event for commands run inside a pane, so a row won't
-update live while you stay put — switch away and back, or trigger the action.
+herdr startup). Herdr has no event for commands run inside a pane, so a row will
+not update live while you stay put — switch away and back, or trigger the action.
 
 ## Requirements
 
@@ -69,11 +55,11 @@ default is:
 rows = [["state_icon", "workspace"], ["branch", "git_status"]]
 ```
 
-Add the jj tokens as their own row:
+Put the jj workspace, change ID, and status alongside the space name, with the commit description on the second row:
 
 ```toml
 [ui.sidebar.spaces]
-rows = [["state_icon", "workspace"], ["branch", "git_status"], ["$jj_bookmark", "$jj_status"]]
+rows = [["state_icon", "workspace", "$jj_workspace", "$jj_change", "$jj_status"], ["$jj_description"]]
 ```
 
 Then reload:
@@ -82,8 +68,7 @@ Then reload:
 herdr server reload-config
 ```
 
-The jj row is empty for non-jj workspaces and collapses automatically, so it only
-takes up space where it applies.
+The description row is empty for non-jj workspaces and collapses automatically.
 
 ### Optional: bind a refresh key
 
@@ -104,5 +89,6 @@ herdr plugin uninstall mroth.jj-status   # installed from GitHub
 herdr plugin unlink mroth.jj-status
 ```
 
-Remove the `$jj_bookmark` / `$jj_status` tokens from `ui.sidebar.spaces.rows` and
+Remove the `$jj_workspace`, `$jj_change`, `$jj_status`, and
+`$jj_description` tokens from `ui.sidebar.spaces.rows` and
 `herdr server reload-config`.
